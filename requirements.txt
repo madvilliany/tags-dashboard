@@ -1,4 +1,6 @@
 streamlit==1.24.0
 pandas==2.1.1
 plotly==5.16.0
+--use-feature=2020-resolver
+--only-binary=:all:
 pillow>=10.0.0
