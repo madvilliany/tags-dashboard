@@ -44,11 +44,14 @@ filtered_data = tags_df[
 st.subheader("Filtered Data")
 st.dataframe(filtered_data)
 
-# Overview Metrics
+# Overview Metrics (convert seconds to minutes)
+total_duration_minutes = tags_df['Duration (seconds)'].sum() / 60
+average_duration_minutes = tags_df['Duration (seconds)'].mean() / 60
+
 st.subheader("Overview Metrics")
 st.metric("Total Tags", len(tags_df['Tag'].unique()))
-st.metric("Total Duration (s)", tags_df['Duration (seconds)'].sum())
-st.metric("Average Duration (s)", tags_df['Duration (seconds)'].mean())
+st.metric("Total Duration (minutes)", round(total_duration_minutes, 2))
+st.metric("Average Duration (minutes)", round(average_duration_minutes, 2))
 
 # Interactive Chart: Top Tags by Duration
 st.subheader("Top Tags by Total Duration")
