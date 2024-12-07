@@ -95,4 +95,6 @@ st.plotly_chart(fig)
 # Artist Listing per Tag
 st.subheader("Artists Associated with Selected Tags")
 for tag in selected_tags:
-    st.write(f"**{tag}**: ", ", ".join(tags_df[tags_df['Tag'] == tag]['Artist'].unique()))
+    # Convert all artist values to strings to avoid errors
+    artists = tags_df[tags_df['Tag'] == tag]['Artist'].dropna().unique()
+    st.write(f"**{tag}**: ", ", ".join(map(str, artists)))
