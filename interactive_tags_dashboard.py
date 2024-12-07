@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 
+
 # Load the data
 @st.cache_data
 def load_data(file_path):
@@ -22,10 +23,18 @@ def convert_duration_to_seconds(duration_str):
 # Load your data file
 data_file = "TAGS.csv"  # Replace with your file path
 tags_df = load_data(data_file)
+st.image("logo.png", width=200)
+
 
 # Dashboard layout
 st.title("TAGS Dashboard with Interactive Charts")
 st.sidebar.header("Filter Options")
+
+search_query = st.text_input("Search Tags or Artists:")
+filtered_data = tags_df[
+    tags_df['Tag'].str.contains(search_query, na=False, case=False) |
+    tags_df['Artist'].str.contains(search_query, na=False, case=False)
+]
 
 # Filter by Tag
 unique_tags = tags_df['Tag'].unique()
@@ -52,6 +61,15 @@ st.subheader("Overview Metrics")
 st.metric("Total Tags", len(tags_df['Tag'].unique()))
 st.metric("Total Duration (minutes)", round(total_duration_minutes, 2))
 st.metric("Average Duration (minutes)", round(average_duration_minutes, 2))
+# Group by Tag and Date
+tag_trends = tags_df.groupby(['Tag', 'Date']).size().reset_index(name='Count')
+
+# Visualize Trending Tags Over Time
+fig = px.line(tag_trends, x='Date', y='Count', color='Tag', title='Trending Tags Over Time')
+st.plotly_chart(fig)
+top_artists = tags_df.groupby('Artist')['Duration (seconds)'].sum().sort_values(ascending=False).head(10)
+fig = px.bar(top_artists, x=top_artists.index, y=top_artists.values, title="Top Artists by Total Duration")
+st.plotly_chart(fig)
 
 # Interactive Chart: Top Tags by Duration
 st.subheader("Top Tags by Total Duration")
@@ -101,3 +119,50 @@ for tag in selected_tags:
     # Convert all artist values to strings to avoid errors
     artists = tags_df[tags_df['Tag'] == tag]['Artist'].dropna().unique()
     st.write(f"**{tag}**: ", ", ".join(map(str, artists)))
+
+
+if st.checkbox("Show Artist Details"):
+    selected_artist = st.selectbox("Select an Artist", tags_df['Artist'].dropna().unique())
+    artist_data = tags_df[tags_df['Artist'] == selected_artist]
+    total_artist_duration = artist_data['Duration (seconds)'].sum() / 60
+    st.metric(f"Total Duration for {selected_artist} (minutes)", round(total_artist_duration, 2))
+    st.dataframe(artist_data)
+
+
+
+from itertools import combinations
+
+if 'Title' in tags_df.columns:
+    cooccurrence_df = calculate_cooccurrences(tags_df)
+    cooccurrence_matrix = cooccurrence_df.pivot(index='Tag1', columns='Tag2', values='Count').fillna(0)
+    fig = px.imshow(
+        cooccurrence_matrix,
+        title="Tag Co-occurrence Heatmap",
+        labels={'x': "Tag", 'y': "Tag", 'color': "Co-occurrence Count"},
+        color_continuous_scale="Blues"
+    )
+    st.plotly_chart(fig)
+else:
+    st.warning("No 'Title' column found. Co-occurrence analysis cannot be performed.")
+
+# Overview Metrics for Filtered Data
+filtered_duration_minutes = filtered_data['Duration (seconds)'].sum() / 60
+filtered_average_duration = filtered_data['Duration (seconds)'].mean() / 60
+
+st.metric("Filtered Total Duration (minutes)", round(filtered_duration_minutes, 2))
+st.metric("Filtered Average Duration (minutes)", round(filtered_average_duration, 2))
+
+#fig = px.bar(data, x="X", y="Y", color="Z", color_continuous_scale="Viridis")
+
+st.write("Welcome to the W-ESN TAGS Dashboard! Use the filters to explore tag data.")
+
+csv = filtered_data.to_csv(index=False)
+st.download_button(
+    label="Download Filtered Data as CSV",
+    data=csv,
+    file_name='filtered_data.csv',
+    mime='text/csv'
+)
+
+st.metric("Total Tags", len(tags_df['Tag'].unique()), help="Total number of unique tags in the dataset.")
+st.metric("Total Duration (minutes)", round(total_duration_minutes, 2), help="Sum of all track durations in minutes.")
