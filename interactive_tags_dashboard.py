@@ -3,6 +3,22 @@ import pandas as pd
 import plotly.express as px
 
 
+# Check if 'Date' column exists and is valid
+if 'Date' in tags_df.columns:
+    tags_df['Date'] = pd.to_datetime(tags_df['Date'], errors='coerce')  # Convert to datetime
+
+    # Ensure 'Date' column has valid values
+    if tags_df['Date'].notna().any():
+        # Group by 'Tag' and 'Date' if data is valid
+        tag_trends = tags_df.groupby(['Tag', 'Date']).size().reset_index(name='Count')
+        fig = px.line(tag_trends, x='Date', y='Count', color='Tag', title='Trending Tags Over Time')
+        st.plotly_chart(fig)
+    else:
+        st.warning("The 'Date' column contains no valid dates. Skipping trending tags analysis.")
+else:
+    st.warning("The 'Date' column is missing. Skipping trending tags analysis.")
+
+
 # Load the data
 @st.cache_data
 def load_data(file_path):
@@ -132,19 +148,6 @@ if st.checkbox("Show Artist Details"):
 
 from itertools import combinations
 
-if 'Title' in tags_df.columns:
-    cooccurrence_df = calculate_cooccurrences(tags_df)
-    cooccurrence_matrix = cooccurrence_df.pivot(index='Tag1', columns='Tag2', values='Count').fillna(0)
-    fig = px.imshow(
-        cooccurrence_matrix,
-        title="Tag Co-occurrence Heatmap",
-        labels={'x': "Tag", 'y': "Tag", 'color': "Co-occurrence Count"},
-        color_continuous_scale="Blues"
-    )
-    st.plotly_chart(fig)
-else:
-    st.warning("No 'Title' column found. Co-occurrence analysis cannot be performed.")
-
 # Overview Metrics for Filtered Data
 filtered_duration_minutes = filtered_data['Duration (seconds)'].sum() / 60
 filtered_average_duration = filtered_data['Duration (seconds)'].mean() / 60
@@ -166,3 +169,33 @@ st.download_button(
 
 st.metric("Total Tags", len(tags_df['Tag'].unique()), help="Total number of unique tags in the dataset.")
 st.metric("Total Duration (minutes)", round(total_duration_minutes, 2), help="Sum of all track durations in minutes.")
+
+from itertools import combinations
+
+def calculate_cooccurrences(df):
+    grouped_tags = df.groupby('Title')['Tag'].apply(list)
+    cooccurrence_counts = {}
+    for tags in grouped_tags:
+        for pair in combinations(sorted(set(tags)), 2):
+            cooccurrence_counts[pair] = cooccurrence_counts.get(pair, 0) + 1
+    return pd.DataFrame([
+        {'Tag1': k[0], 'Tag2': k[1], 'Count': v} for k, v in cooccurrence_counts.items()
+    ])
+
+if 'Tag' in tags_df.columns and 'Artist' in tags_df.columns:
+    filtered_data = tags_df[
+        (tags_df['Tag'].isin(selected_tags)) & 
+        (tags_df['Artist'].isin(selected_artists) if selected_artists else True)
+    ]
+else:
+    st.warning("Columns 'Tag' or 'Artist' are missing. Filtering cannot be applied.")
+    filtered_data = pd.DataFrame()  # Empty DataFrame
+
+
+if 'Duration (seconds)' in tags_df.columns:
+    total_duration_minutes = tags_df['Duration (seconds)'].sum() / 60
+    average_duration_minutes = tags_df['Duration (seconds)'].mean() / 60
+    st.metric("Total Duration (minutes)", round(total_duration_minutes, 2))
+    st.metric("Average Duration (minutes)", round(average_duration_minutes, 2))
+else:
+    st.warning("The 'Duration (seconds)' column is missing. Duration metrics cannot be calculated.")
