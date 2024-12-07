@@ -3,13 +3,10 @@ import pandas as pd
 import plotly.express as px
 
 
-# Check if 'Date' column exists and is valid
+# Trending Tags Over Time
 if 'Date' in tags_df.columns:
-    tags_df['Date'] = pd.to_datetime(tags_df['Date'], errors='coerce')  # Convert to datetime
-
-    # Ensure 'Date' column has valid values
+    tags_df['Date'] = pd.to_datetime(tags_df['Date'], errors='coerce')
     if tags_df['Date'].notna().any():
-        # Group by 'Tag' and 'Date' if data is valid
         tag_trends = tags_df.groupby(['Tag', 'Date']).size().reset_index(name='Count')
         fig = px.line(tag_trends, x='Date', y='Count', color='Tag', title='Trending Tags Over Time')
         st.plotly_chart(fig)
@@ -17,6 +14,14 @@ if 'Date' in tags_df.columns:
         st.warning("The 'Date' column contains no valid dates. Skipping trending tags analysis.")
 else:
     st.warning("The 'Date' column is missing. Skipping trending tags analysis.")
+
+required_columns = ['Tag', 'Artist', 'Duration (seconds)', 'Date']
+missing_columns = [col for col in required_columns if col not in tags_df.columns]
+
+if missing_columns:
+    st.warning(f"The dataset is missing the following required columns: {', '.join(missing_columns)}")
+else:
+    tags_df['Date'] = pd.to_datetime(tags_df['Date'], errors='coerce')
 
 
 # Load the data
@@ -77,8 +82,6 @@ st.subheader("Overview Metrics")
 st.metric("Total Tags", len(tags_df['Tag'].unique()))
 st.metric("Total Duration (minutes)", round(total_duration_minutes, 2))
 st.metric("Average Duration (minutes)", round(average_duration_minutes, 2))
-# Group by Tag and Date
-tag_trends = tags_df.groupby(['Tag', 'Date']).size().reset_index(name='Count')
 
 # Visualize Trending Tags Over Time
 fig = px.line(tag_trends, x='Date', y='Count', color='Tag', title='Trending Tags Over Time')
@@ -199,3 +202,51 @@ if 'Duration (seconds)' in tags_df.columns:
     st.metric("Average Duration (minutes)", round(average_duration_minutes, 2))
 else:
     st.warning("The 'Duration (seconds)' column is missing. Duration metrics cannot be calculated.")
+
+
+# Consolidate Filtered Data
+if 'Tag' in tags_df.columns and 'Artist' in tags_df.columns:
+    filtered_data = tags_df[
+        (tags_df['Tag'].isin(selected_tags)) & 
+        (tags_df['Artist'].isin(selected_artists) if selected_artists else True)
+    ]
+else:
+    st.warning("Columns 'Tag' or 'Artist' are missing. Filtering cannot be applied.")
+    filtered_data = pd.DataFrame()
+
+# Consolidate Metrics
+if 'Duration (seconds)' in filtered_data.columns:
+    filtered_duration_minutes = filtered_data['Duration (seconds)'].sum() / 60
+    filtered_average_duration = filtered_data['Duration (seconds)'].mean() / 60
+    st.metric("Filtered Total Duration (minutes)", round(filtered_duration_minutes, 2))
+    st.metric("Filtered Average Duration (minutes)", round(filtered_average_duration, 2))
+else:
+    st.warning("The 'Duration (seconds)' column is missing. Metrics cannot be calculated.")
+
+if 'Title' in tags_df.columns:
+    cooccurrence_df = calculate_cooccurrences(tags_df)
+    cooccurrence_matrix = cooccurrence_df.pivot(index='Tag1', columns='Tag2', values='Count').fillna(0)
+    fig = px.imshow(
+        cooccurrence_matrix,
+        title="Tag Co-occurrence Heatmap",
+        labels={'x': "Tag", 'y': "Tag", 'color': "Co-occurrence Count"},
+        color_continuous_scale="Blues"
+    )
+    st.plotly_chart(fig)
+else:
+    st.warning("The 'Title' column is missing. Co-occurrence analysis cannot be performed.")
+
+st.subheader("Filtered Data")
+if not filtered_data.empty:
+    st.dataframe(filtered_data.head(100))  # Display only the first 100 rows
+else:
+    st.warning("No data available for the selected filters.")
+
+def display_metrics(dataframe):
+    total_duration_minutes = dataframe['Duration (seconds)'].sum() / 60
+    average_duration_minutes = dataframe['Duration (seconds)'].mean() / 60
+    st.metric("Total Duration (minutes)", round(total_duration_minutes, 2))
+    st.metric("Average Duration (minutes)", round(average_duration_minutes, 2))
+
+if not filtered_data.empty:
+    display_metrics(filtered_data)
