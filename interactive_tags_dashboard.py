@@ -49,84 +49,72 @@ data_file = "TAGS.csv"  # Replace with your file path
 tags_df = load_data(data_file)
 
 # Validate Columns
-required_columns = ['Tag', 'Artist', 'Duration (seconds)', 'Date']
+required_columns = ['Tag', 'Artist', 'Duration (seconds)']
 missing_columns = [col for col in required_columns if col not in tags_df.columns]
 
 if missing_columns:
     st.error(f"The dataset is missing the following required columns: {', '.join(missing_columns)}")
 else:
-    tags_df['Date'] = pd.to_datetime(tags_df['Date'], errors='coerce')
+    st.image("logo.png", width=200)
+    st.title("TAGS Dashboard with Interactive Charts")
+    st.sidebar.header("Filter Options")
 
-# App Title and Logo
-st.image("logo.png", width=200)
-st.title("TAGS Dashboard with Interactive Charts")
-st.sidebar.header("Filter Options")
+    # Sidebar Filters
+    search_query = st.text_input("Search Tags or Artists:")
+    filtered_data = tags_df[
+        tags_df['Tag'].str.contains(search_query, na=False, case=False) |
+        tags_df['Artist'].str.contains(search_query, na=False, case=False)
+    ]
 
-# Sidebar Filters
-search_query = st.text_input("Search Tags or Artists:")
-filtered_data = tags_df[
-    tags_df['Tag'].str.contains(search_query, na=False, case=False) |
-    tags_df['Artist'].str.contains(search_query, na=False, case=False)
-]
+    selected_tags = st.sidebar.multiselect("Select Tags", options=tags_df['Tag'].unique())
+    selected_artists = st.sidebar.multiselect("Select Artists", options=tags_df['Artist'].unique())
 
-selected_tags = st.sidebar.multiselect("Select Tags", options=tags_df['Tag'].unique())
-selected_artists = st.sidebar.multiselect("Select Artists", options=tags_df['Artist'].unique())
+    # Filter Data
+    filtered_data = tags_df[
+        (tags_df['Tag'].isin(selected_tags)) &
+        (tags_df['Artist'].isin(selected_artists) if selected_artists else True)
+    ]
 
-# Filter Data
-filtered_data = tags_df[
-    (tags_df['Tag'].isin(selected_tags)) &
-    (tags_df['Artist'].isin(selected_artists) if selected_artists else True)
-]
+    # Overview Metrics
+    st.subheader("Overview Metrics")
+    total_duration_minutes, average_duration_minutes = calculate_metrics(tags_df)
+    if total_duration_minutes is not None:
+        st.metric("Total Tags", len(tags_df['Tag'].unique()))
+        st.metric("Total Duration (minutes)", total_duration_minutes)
+        st.metric("Average Duration (minutes)", average_duration_minutes)
 
-# Overview Metrics
-st.subheader("Overview Metrics")
-total_duration_minutes, average_duration_minutes = calculate_metrics(tags_df)
-if total_duration_minutes is not None:
-    st.metric("Total Tags", len(tags_df['Tag'].unique()))
-    st.metric("Total Duration (minutes)", total_duration_minutes)
-    st.metric("Average Duration (minutes)", average_duration_minutes)
+    # Filtered Metrics
+    st.subheader("Filtered Data Metrics")
+    filtered_total, filtered_avg = calculate_metrics(filtered_data)
+    if filtered_total is not None:
+        st.metric("Filtered Total Duration (minutes)", filtered_total)
+        st.metric("Filtered Average Duration (minutes)", filtered_avg)
 
-# Filtered Metrics
-st.subheader("Filtered Data Metrics")
-filtered_total, filtered_avg = calculate_metrics(filtered_data)
-if filtered_total is not None:
-    st.metric("Filtered Total Duration (minutes)", filtered_total)
-    st.metric("Filtered Average Duration (minutes)", filtered_avg)
+    # Co-occurrence Analysis
+    st.subheader("Tag Co-occurrence Analysis")
+    cooccurrence_df = calculate_cooccurrences(tags_df)
+    if not cooccurrence_df.empty:
+        cooccurrence_matrix = cooccurrence_df.pivot(index='Tag1', columns='Tag2', values='Count').fillna(0)
+        fig = px.imshow(
+            cooccurrence_matrix,
+            title="Tag Co-occurrence Heatmap",
+            labels={'x': "Tag", 'y': "Tag", 'color': "Co-occurrence Count"},
+            color_continuous_scale="Blues"
+        )
+        st.plotly_chart(fig)
 
-# Trending Tags Over Time
-st.subheader("Trending Tags Over Time")
-if 'Date' in tags_df.columns and tags_df['Date'].notna().any():
-    tag_trends = tags_df.groupby(['Tag', 'Date']).size().reset_index(name='Count')
-    fig = px.line(tag_trends, x='Date', y='Count', color='Tag', title="Trending Tags Over Time")
-    st.plotly_chart(fig)
-else:
-    st.warning("The 'Date' column contains no valid data for trending analysis.")
+    # Top Artists by Duration
+    st.subheader("Top Artists by Duration")
+    if 'Artist' in tags_df.columns:
+        top_artists = tags_df.groupby('Artist')['Duration (seconds)'].sum().sort_values(ascending=False).head(10)
+        fig = px.bar(top_artists, x=top_artists.index, y=top_artists.values, title="Top Artists by Total Duration")
+        st.plotly_chart(fig)
 
-# Co-occurrence Analysis
-st.subheader("Tag Co-occurrence Analysis")
-cooccurrence_df = calculate_cooccurrences(tags_df)
-if not cooccurrence_df.empty:
-    cooccurrence_matrix = cooccurrence_df.pivot(index='Tag1', columns='Tag2', values='Count').fillna(0)
-    fig = px.imshow(
-        cooccurrence_matrix,
-        title="Tag Co-occurrence Heatmap",
-        labels={'x': "Tag", 'y': "Tag", 'color': "Co-occurrence Count"},
-        color_continuous_scale="Blues"
-    )
-    st.plotly_chart(fig)
-
-# Top Artists by Duration
-st.subheader("Top Artists by Duration")
-if 'Artist' in tags_df.columns:
-    top_artists = tags_df.groupby('Artist')['Duration (seconds)'].sum().sort_values(ascending=False).head(10)
-    fig = px.bar(top_artists, x=top_artists.index, y=top_artists.values, title="Top Artists by Total Duration")
-    st.plotly_chart(fig)
-
-# Filtered Data Display
-st.subheader("Filtered Data")
-if not filtered_data.empty:
-    st.dataframe(filtered_data.head(50))  # Limit rows displayed for performance
-    csv = filtered_data.to_csv(index=False)
-    st.download_button(label="Download Filtered Data as CSV", data=csv, file_name="filtered_data.csv", mime="text/csv")
-else:
-    st.warning("No data available for the selected filters.")
+    # Filtered Data Display
+    st.subheader("Filtered Data")
+    if not filtered_data.empty:
+        st.dataframe(filtered_data.head(50))  # Limit rows displayed for performance
+        csv = filtered_data.to_csv(index=False)
+        st.download_button(label="Download Filtered Data as CSV", data=csv, file_name="filtered_data.csv", mime="text/csv")
+    else:
+        st.warning("No data available for the selected filters.")
