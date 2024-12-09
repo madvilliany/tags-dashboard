@@ -56,7 +56,7 @@ def plot_tag_relationships(dataframe, max_edges=100):
 
 # Load datasets
 tags_file = "TAGS.csv"
-tracks_file = "wesn_track_data_120124.csv"
+tracks_file = "wesn_track_data.csv"
 
 tags_df = load_data(tags_file)
 tracks_df = load_track_data(tracks_file)
