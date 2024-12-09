@@ -63,28 +63,18 @@ if 'Duration (seconds)' not in tags_df.columns:
         tags_df['Duration (seconds)'] = 0
 
 # Fix missing or misnamed columns in TRACKS dataset
-# Ensure the 'Duration (seconds)' column exists and is valid
-if 'Duration (seconds)' not in tags_df.columns:
-    st.error("The 'Duration (seconds)' column is missing in the TAGS dataset.")
-    tags_df['Duration (seconds)'] = 0  # Add default column if missing
-else:
-    # Ensure numeric values in 'Duration (seconds)'
-    tags_df['Duration (seconds)'] = pd.to_numeric(tags_df['Duration (seconds)'], errors='coerce')
-    tags_df['Duration (seconds)'].fillna(0, inplace=True)
+tracks_df.rename(columns={'Song': 'Track', 'Category': 'Genre'}, inplace=True)
 
-# Calculate metrics
-try:
-    total_duration_tags = tags_df['Duration (seconds)'].sum() / 60  # Total in minutes
-    avg_duration_tags = tags_df['Duration (seconds)'].mean() / 60  # Average in minutes
-except Exception as e:
-    st.error(f"Error calculating duration metrics: {e}")
-    total_duration_tags = 0
-    avg_duration_tags = 0
-
-# Display metrics
-st.metric("Total Duration (minutes)", round(total_duration_tags, 2))
-st.metric("Average Duration (minutes)", round(avg_duration_tags, 2))
-
+# Handle missing columns in TRACKS dataset
+if 'Duration (seconds)' not in tracks_df.columns:
+    if 'Duration' in tracks_df.columns:
+        tracks_df['Duration (seconds)'] = tracks_df['Duration'].apply(convert_duration_to_seconds)
+    else:
+        tracks_df['Duration (seconds)'] = 0  # Default to 0 if missing
+if 'Track' not in tracks_df.columns:
+    tracks_df['Track'] = "Unknown Track"
+if 'Genre' not in tracks_df.columns:
+    tracks_df['Genre'] = "Unknown Genre"
 
 # Validate datasets
 tags_required_columns = ['Tag', 'Artist', 'Duration (seconds)', 'Title']
