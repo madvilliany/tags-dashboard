@@ -28,6 +28,7 @@ def convert_duration_to_seconds(duration_str):
             return time_parts[0] * 3600 + time_parts[1] * 60 + time_parts[2]
         elif len(time_parts) == 2:
             return time_parts[0] * 60 + time_parts[1]
+        return None
     except:
         return None
 
@@ -56,17 +57,19 @@ tracks_df = load_data(tracks_file)
 
 # Validate and handle missing columns in TAGS dataset
 if 'Duration (seconds)' not in tags_df.columns:
-    st.error("The 'Duration (seconds)' column is missing in the TAGS dataset.")
-    tags_df['Duration (seconds)'] = 0
-tags_df['Duration (seconds)'] = pd.to_numeric(tags_df['Duration (seconds)'], errors='coerce').fillna(0)
+    # Use the existing 'Duration' column to calculate seconds dynamically
+    if 'Duration' in tags_df.columns:
+        tags_df['Duration (seconds)'] = tags_df['Duration'].apply(convert_duration_to_seconds)
+    else:
+        tags_df['Duration (seconds)'] = 0
 
-# Metrics for TAGS
+# Calculate metrics dynamically without altering the original format
 if tags_df.empty:
     st.warning("The TAGS dataset is empty. No data to analyze.")
     total_duration_tags, avg_duration_tags = 0, 0
 else:
-    total_duration_tags = tags_df['Duration (seconds)'].sum() / 60
-    avg_duration_tags = tags_df['Duration (seconds)'].mean() / 60
+    total_duration_tags = tags_df['Duration (seconds)'].sum() / 60  # Total in minutes
+    avg_duration_tags = tags_df['Duration (seconds)'].mean() / 60  # Average in minutes
 
 # Validate and handle missing columns in TRACKS dataset
 tracks_df.rename(columns={'Song': 'Track', 'Category': 'Genre'}, inplace=True)
@@ -86,6 +89,8 @@ with tab1:
     st.header("TAGS Data")
     st.metric("Total Duration (minutes)", round(total_duration_tags, 2))
     st.metric("Average Duration (minutes)", round(avg_duration_tags, 2))
+    st.subheader("Original Duration Format")
+    st.dataframe(tags_df[['Title', 'Duration', 'Tag']])
 
 with tab2:
     st.header("TRACKS Data")
