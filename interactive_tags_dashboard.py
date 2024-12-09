@@ -20,13 +20,6 @@ def load_data(file_path):
     return pd.read_csv(file_path)
 
 @st.cache_data
-def load_track_data(file_path):
-    """Load track data and preprocess durations."""
-    df = pd.read_csv(file_path)
-    if 'Duration' in df.columns:
-        df['Duration (seconds)'] = df['Duration'].apply(convert_duration_to_seconds)
-    return df
-
 def convert_duration_to_seconds(duration_str):
     """Convert HH:MM:SS or MM:SS to seconds."""
     try:
@@ -59,19 +52,35 @@ tags_file = "TAGS.csv"
 tracks_file = "wesn_track_data.csv"
 
 tags_df = load_data(tags_file)
-tracks_df = load_track_data(tracks_file)
+tracks_df = load_data(tracks_file)
 
-# Validate Columns for Tags and Tracks
+# Fix missing or misnamed columns
+tags_df.rename(columns={'Duration': 'Duration (seconds)'}, inplace=True)
+tracks_df.rename(columns={'Song': 'Track', 'Category': 'Genre'}, inplace=True)
+
+# Handle entirely missing columns
+if 'Duration (seconds)' not in tags_df.columns:
+    if 'Duration' in tags_df.columns:
+        tags_df['Duration (seconds)'] = tags_df['Duration'].apply(convert_duration_to_seconds)
+    else:
+        tags_df['Duration (seconds)'] = 0  # Default to 0 if missing
+
+if 'Track' not in tracks_df.columns:
+    tracks_df['Track'] = "Unknown Track"
+if 'Genre' not in tracks_df.columns:
+    tracks_df['Genre'] = "Unknown Genre"
+
+# Validate columns again
 tags_required_columns = ['Tag', 'Artist', 'Duration (seconds)', 'Title']
 tracks_required_columns = ['Track', 'Artist', 'Genre', 'Duration (seconds)']
 
-tags_missing_columns = [col for col in tags_required_columns if col not in tags_df.columns]
-tracks_missing_columns = [col for col in tracks_required_columns if col not in tracks_df.columns]
+missing_columns_tags = [col for col in tags_required_columns if col not in tags_df.columns]
+missing_columns_tracks = [col for col in tracks_required_columns if col not in tracks_df.columns]
 
-if tags_missing_columns:
-    st.error(f"The tags dataset is missing columns: {', '.join(tags_missing_columns)}")
-if tracks_missing_columns:
-    st.error(f"The tracks dataset is missing columns: {', '.join(tracks_missing_columns)}")
+if missing_columns_tags:
+    st.error(f"TAGS dataset is missing columns: {', '.join(missing_columns_tags)}")
+if missing_columns_tracks:
+    st.error(f"TRACKS dataset is missing columns: {', '.join(missing_columns_tracks)}")
 else:
     # Dashboard Title and Introduction
     st.title("🎵 TAGS & TRACKS Dashboard")
