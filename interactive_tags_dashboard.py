@@ -13,7 +13,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Helper functions
+# Helper Functions
 @st.cache_data
 def load_data(file_path):
     """Load CSV data."""
@@ -54,23 +54,28 @@ tracks_file = "wesn_track_data.csv"
 tags_df = load_data(tags_file)
 tracks_df = load_data(tracks_file)
 
-# Fix missing or misnamed columns
+# Fix missing or misnamed columns in TAGS dataset
 tags_df.rename(columns={'Duration': 'Duration (seconds)'}, inplace=True)
-tracks_df.rename(columns={'Song': 'Track', 'Category': 'Genre'}, inplace=True)
-
-# Handle entirely missing columns
 if 'Duration (seconds)' not in tags_df.columns:
     if 'Duration' in tags_df.columns:
         tags_df['Duration (seconds)'] = tags_df['Duration'].apply(convert_duration_to_seconds)
     else:
-        tags_df['Duration (seconds)'] = 0  # Default to 0 if missing
+        tags_df['Duration (seconds)'] = 0
+
+# Fix missing or misnamed columns in TRACKS dataset
+tracks_df.rename(columns={'Song': 'Track', 'Category': 'Genre'}, inplace=True)
+if 'Duration (seconds)' not in tracks_df.columns:
+    if 'Duration' in tracks_df.columns:
+        tracks_df['Duration (seconds)'] = tracks_df['Duration'].apply(convert_duration_to_seconds)
+    else:
+        tracks_df['Duration (seconds)'] = 0
 
 if 'Track' not in tracks_df.columns:
     tracks_df['Track'] = "Unknown Track"
 if 'Genre' not in tracks_df.columns:
     tracks_df['Genre'] = "Unknown Genre"
 
-# Validate columns again
+# Validate datasets
 tags_required_columns = ['Tag', 'Artist', 'Duration (seconds)', 'Title']
 tracks_required_columns = ['Track', 'Artist', 'Genre', 'Duration (seconds)']
 
@@ -92,7 +97,6 @@ else:
     # TAGS Section
     with tab1:
         st.header("TAGS Data")
-        # Metrics for Tags
         total_tags = len(tags_df['Tag'].unique())
         total_duration_tags = tags_df['Duration (seconds)'].sum() / 60
         avg_duration_tags = tags_df['Duration (seconds)'].mean() / 60
@@ -105,7 +109,6 @@ else:
         with col3:
             st.metric("Average Duration (minutes)", round(avg_duration_tags, 2))
 
-        # Tag Relationships
         st.subheader("Tag Relationships")
         max_edges = st.slider("Max edges in the network graph", 10, 500, 100)
         plot_tag_relationships(tags_df, max_edges=max_edges)
@@ -113,8 +116,6 @@ else:
     # TRACKS Section
     with tab2:
         st.header("TRACKS Data")
-
-        # Track Metrics
         total_tracks = len(tracks_df)
         avg_duration_tracks = tracks_df["Duration (seconds)"].mean() / 60
         total_duration_tracks = tracks_df["Duration (seconds)"].sum() / 60
@@ -127,7 +128,6 @@ else:
         with col3:
             st.metric("Total Track Duration (minutes)", round(total_duration_tracks, 2))
 
-        # Filters for Tracks
         st.sidebar.header("Track Filters")
         selected_artist = st.sidebar.multiselect("Filter by Artist", tracks_df["Artist"].unique())
         selected_genre = st.sidebar.multiselect("Filter by Genre", tracks_df["Genre"].unique())
@@ -137,7 +137,6 @@ else:
             (tracks_df["Genre"].isin(selected_genre) if selected_genre else True)
         ]
 
-        # Top Tracks Visualization
         st.subheader("Top Tracks by Duration")
         top_tracks = filtered_tracks.sort_values("Duration (seconds)", ascending=False).head(10)
         if not top_tracks.empty:
@@ -152,30 +151,3 @@ else:
             st.plotly_chart(fig)
         else:
             st.warning("No tracks found for the selected filters.")
-
-        # Genre Distribution Visualization
-        st.subheader("Tracks by Genre")
-        genre_count = filtered_tracks["Genre"].value_counts()
-        if not genre_count.empty:
-            fig = px.pie(
-                names=genre_count.index,
-                values=genre_count.values,
-                title="Track Distribution by Genre"
-            )
-            st.plotly_chart(fig)
-        else:
-            st.warning("No genres available for the selected filters.")
-
-        # Display Filtered Tracks
-        st.subheader("Filtered Tracks")
-        num_rows = st.slider("Number of rows to display", min_value=10, max_value=100, value=20)
-        st.dataframe(filtered_tracks.head(num_rows))
-
-        # Download Filtered Tracks
-        csv = filtered_tracks.to_csv(index=False)
-        st.download_button(
-            label="Download Filtered Tracks as CSV",
-            data=csv,
-            file_name=f"filtered_tracks_{len(filtered_tracks)}_rows.csv",
-            mime="text/csv"
-        )
