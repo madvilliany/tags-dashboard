@@ -54,101 +54,46 @@ tracks_file = "wesn_track_data.csv"
 tags_df = load_data(tags_file)
 tracks_df = load_data(tracks_file)
 
-# Fix missing or misnamed columns in TAGS dataset
-tags_df.rename(columns={'Duration': 'Duration (seconds)'}, inplace=True)
+# Validate and handle missing columns in TAGS dataset
 if 'Duration (seconds)' not in tags_df.columns:
-    if 'Duration' in tags_df.columns:
-        tags_df['Duration (seconds)'] = tags_df['Duration'].apply(convert_duration_to_seconds)
-    else:
-        tags_df['Duration (seconds)'] = 0
+    st.error("The 'Duration (seconds)' column is missing in the TAGS dataset.")
+    tags_df['Duration (seconds)'] = 0
+tags_df['Duration (seconds)'] = pd.to_numeric(tags_df['Duration (seconds)'], errors='coerce').fillna(0)
 
-# Fix missing or misnamed columns in TRACKS dataset
+# Metrics for TAGS
+if tags_df.empty:
+    st.warning("The TAGS dataset is empty. No data to analyze.")
+    total_duration_tags, avg_duration_tags = 0, 0
+else:
+    total_duration_tags = tags_df['Duration (seconds)'].sum() / 60
+    avg_duration_tags = tags_df['Duration (seconds)'].mean() / 60
+
+# Validate and handle missing columns in TRACKS dataset
 tracks_df.rename(columns={'Song': 'Track', 'Category': 'Genre'}, inplace=True)
-
-# Handle missing columns in TRACKS dataset
 if 'Duration (seconds)' not in tracks_df.columns:
     if 'Duration' in tracks_df.columns:
         tracks_df['Duration (seconds)'] = tracks_df['Duration'].apply(convert_duration_to_seconds)
     else:
-        tracks_df['Duration (seconds)'] = 0  # Default to 0 if missing
-if 'Track' not in tracks_df.columns:
-    tracks_df['Track'] = "Unknown Track"
-if 'Genre' not in tracks_df.columns:
-    tracks_df['Genre'] = "Unknown Genre"
+        tracks_df['Duration (seconds)'] = 0
+tracks_df['Duration (seconds)'] = pd.to_numeric(tracks_df['Duration (seconds)'], errors='coerce').fillna(0)
+tracks_df['Track'] = tracks_df.get('Track', "Unknown Track")
+tracks_df['Genre'] = tracks_df.get('Genre', "Unknown Genre")
 
-# Validate datasets
-tags_required_columns = ['Tag', 'Artist', 'Duration (seconds)', 'Title']
-tracks_required_columns = ['Track', 'Artist', 'Genre', 'Duration (seconds)']
+# Tabs for dashboard
+tab1, tab2, tab3 = st.tabs(["TAGS", "TRACKS", "Data Overview"])
 
-missing_columns_tags = [col for col in tags_required_columns if col not in tags_df.columns]
-missing_columns_tracks = [col for col in tracks_required_columns if col not in tracks_df.columns]
+with tab1:
+    st.header("TAGS Data")
+    st.metric("Total Duration (minutes)", round(total_duration_tags, 2))
+    st.metric("Average Duration (minutes)", round(avg_duration_tags, 2))
 
-if missing_columns_tags:
-    st.error(f"TAGS dataset is missing columns: {', '.join(missing_columns_tags)}")
-if missing_columns_tracks:
-    st.error(f"TRACKS dataset is missing columns: {', '.join(missing_columns_tracks)}")
-else:
-    # Dashboard Title and Introduction
-    st.title("🎵 TAGS & TRACKS Dashboard")
-    st.markdown("Explore, filter, and visualize your TAGS and TRACKS data.")
+with tab2:
+    st.header("TRACKS Data")
+    st.write("Add metrics and filtering for TRACKS here...")
 
-    # Tabs for Navigation
-    tab1, tab2 = st.tabs(["TAGS", "TRACKS"])
-
-    # TAGS Section
-    with tab1:
-        st.header("TAGS Data")
-        total_tags = len(tags_df['Tag'].unique())
-        total_duration_tags = tags_df['Duration (seconds)'].sum() / 60
-        avg_duration_tags = tags_df['Duration (seconds)'].mean() / 60
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Tags", total_tags)
-        with col2:
-            st.metric("Total Duration (minutes)", round(total_duration_tags, 2))
-        with col3:
-            st.metric("Average Duration (minutes)", round(avg_duration_tags, 2))
-
-        st.subheader("Tag Relationships")
-        max_edges = st.slider("Max edges in the network graph", 10, 500, 100)
-        plot_tag_relationships(tags_df, max_edges=max_edges)
-
-    # TRACKS Section
-    with tab2:
-        st.header("TRACKS Data")
-        total_tracks = len(tracks_df)
-        avg_duration_tracks = tracks_df["Duration (seconds)"].mean() / 60
-        total_duration_tracks = tracks_df["Duration (seconds)"].sum() / 60
-
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.metric("Total Tracks", total_tracks)
-        with col2:
-            st.metric("Average Track Duration (minutes)", round(avg_duration_tracks, 2))
-        with col3:
-            st.metric("Total Track Duration (minutes)", round(total_duration_tracks, 2))
-
-        st.sidebar.header("Track Filters")
-        selected_artist = st.sidebar.multiselect("Filter by Artist", tracks_df["Artist"].unique())
-        selected_genre = st.sidebar.multiselect("Filter by Genre", tracks_df["Genre"].unique())
-
-        filtered_tracks = tracks_df[
-            (tracks_df["Artist"].isin(selected_artist) if selected_artist else True) &
-            (tracks_df["Genre"].isin(selected_genre) if selected_genre else True)
-        ]
-
-        st.subheader("Top Tracks by Duration")
-        top_tracks = filtered_tracks.sort_values("Duration (seconds)", ascending=False).head(10)
-        if not top_tracks.empty:
-            fig = px.bar(
-                top_tracks,
-                x="Track",
-                y="Duration (seconds)",
-                color="Artist",
-                title="Top Tracks by Duration",
-                labels={"Track": "Track Name", "Duration (seconds)": "Duration"}
-            )
-            st.plotly_chart(fig)
-        else:
-            st.warning("No tracks found for the selected filters.")
+with tab3:
+    st.header("Data Overview")
+    st.subheader("TAGS Dataset")
+    st.dataframe(tags_df)
+    st.subheader("TRACKS Dataset")
+    st.dataframe(tracks_df)
